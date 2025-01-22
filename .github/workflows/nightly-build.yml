@@ -38,18 +38,11 @@ jobs:
           out-file-path: 'temp'
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Debug check
-        run: |
-          echo "List files under temp/:"
-          ls -al temp
-          echo "Try listing temp/*.7z:"
-          ls -al temp/*.7z || echo "No 7z file found"
-
       # 4. 解压 nightly-*.7z 到 temp/extracted
       - name: Extract translation
         uses: edgarrc/action-7z@v1
         with:
-          args: 7z x -y 'temp/nightly-*.7z' -otemp/extracted
+          args: 7z x -y temp/nightly-*.7z -otemp/extracted
 
       # 5. 删除（排除）不需要的文件
       - name: Remove unwanted files in downloaded content
