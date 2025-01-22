@@ -55,7 +55,7 @@ jobs:
       - name: Zip Output
         uses: edgarrc/action-7z@v1
         with:
-          args: 7z a -t7z -mx=9 ./assets/patch-$NB_LOCAL_DATE.7z ./ -x!GTNH介绍.txt -x!看我.md -x!.github
+          args: 7z a -t7z -mx=9 ./assets/patch-$NB_LOCAL_DATE.7z ./ -x!GTNH介绍.txt -x!看我.md -x!.github -x!.git -x!temp
 
 
       # 7. 推送 tag 到远程
@@ -79,7 +79,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: $NB_TAG
-          name: 每日构建 - $NB_LOCAL_DATE
+          name: Patch 每日构建 - $NB_LOCAL_DATE
           body: |
             请阅读主页 ReadMe 以获知详细用法
 
