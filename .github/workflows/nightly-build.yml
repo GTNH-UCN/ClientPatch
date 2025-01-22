@@ -53,9 +53,9 @@ jobs:
 
       # 6. 打包成 7z（文件名改为 patch-日期.7z）
       - name: Zip Output
-      uses: edgarrc/action-7z@v1
-      with:
-        args: 7z a -t7z -mx=9 ./assets/patch-$NB_LOCAL_DATE.7z ./ -x!GTNH介绍.txt -x!看我.md -x!.github
+        uses: edgarrc/action-7z@v1
+        with:
+          args: 7z a -t7z -mx=9 ./assets/patch-$NB_LOCAL_DATE.7z ./ -x!GTNH介绍.txt -x!看我.md -x!.github
 
 
       # 7. 推送 tag 到远程
