@@ -3,6 +3,7 @@ name: Nightly Build
 on:
   # 手动触发
   workflow_dispatch:
+
   # 定时触发 (UTC 时间 20:00，相当于北京时间次日 04:00)
   schedule:
     - cron: '0 20 * * *'
@@ -13,22 +14,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. 获取当前日期和时间（转成 UTC+8），写入 GITHUB_ENV
+      # 1. 获取当前日期和时间（使用 Asia/Shanghai 时区）
       - name: Get current date
         id: date
         run: |
-          BJ_DATE=$(date -u '+%Y-%m-%d' -d '+8 hour')
-          BJ_TIME=$(date -u '+%H:%M:%S' -d '+8 hour')
+          BJ_DATE=$(TZ=Asia/Shanghai date '+%Y-%m-%d')
+          BJ_TIME=$(TZ=Asia/Shanghai date '+%H:%M:%S')
 
           echo "NB_LOCAL_DATE=$BJ_DATE" >> $GITHUB_ENV
           echo "NB_LOCAL_TIME=$BJ_TIME" >> $GITHUB_ENV
-          echo "NB_TAG=nightly-$BJ_DATE" >> $GITHUB_ENV
+          # 如果要让 Tag 名也用 patch- 前缀，可以改这里
+          echo "NB_TAG=patch-$BJ_DATE" >> $GITHUB_ENV
 
       # 2. 检出本仓库代码
       - name: Check out
         uses: actions/checkout@v3
 
-      # 3. 使用 robinraju/release-downloader 下载另一个仓库最新 Release 中的 nightly-*.7z
+      # 3. 下载另一个仓库最新 Release 中的 nightly-*.7z
       - name: Download latest release from GTNH-UCN/Translation-of-GTNH
         uses: robinraju/release-downloader@v1
         with:
@@ -44,34 +46,22 @@ jobs:
         with:
           args: 7z x -y temp/nightly-*.7z -otemp/extracted
 
-      # # 5. 删除（排除）不需要的文件
-      # - name: Fix permissions and remove files
-      #   run: |
-      #     # 强制把 temp/extracted/ 目录下的文件权限都改为可写
-      #     sudo chmod -R +w temp/extracted
-      #     # 然后再删除目标文件/文件夹
-      #     rm -rf temp/extracted/GTNH介绍.txt
-
-      # 6. 覆盖合并到本仓库
+      # 5. 合并到本仓库（如需排除可用 --exclude）
       - name: Merge downloaded content to this repo
         run: |
           rsync -av temp/extracted/ ./
 
-        # # 7. 移除本项目内也不想打进包的文件
-        # - name: Remove unwanted files from this project
-        #   run: |
-        #     rm -rf .github
-        #     # rm -f .gitignore
-        #     # 视需要增补
-
-      # 8. 打包成 7z（文件名中带上日期）
+      # 6. 打包成 7z（文件名改为 patch-日期.7z）
       - name: Zip Output
         uses: edgarrc/action-7z@v1
         with:
-          args: 7z a -t7z -mx=9 ./assets/nightly-$NB_LOCAL_DATE.7z ./ -x!GTNH介绍.txt -x!看我.md -x!.github
+          # 注意，这里改为 patch-$NB_LOCAL_DATE.7z
+          args: 7z a -t7z -mx=9 ./assets/patch-$NB_LOCAL_DATE.7z ./ \
+            -x!GTNH介绍.txt \
+            -x!看我.md \
+            -x!.github
 
-
-      # 9. 推送一个 tag 到远程（用日期命名）
+      # 7. 推送 tag 到远程
       - name: Push tag
         run: |
           git config user.name github-actions[bot]
@@ -85,7 +75,7 @@ jobs:
           git push --delete origin $NB_TAG || true
           git push origin $NB_TAG
 
-      # 10. 发布 Release
+      # 8. 发布 Release
       - name: Release Nightly Build
         uses: softprops/action-gh-release@v1
         env:
@@ -97,5 +87,6 @@ jobs:
             请阅读主页 ReadMe 以获知详细用法
 
             自动构建于 $NB_LOCAL_DATE $NB_LOCAL_TIME
+          # 同样需要把上传的文件名改为 patch-$NB_LOCAL_DATE.7z
           files: |
-            ./assets/nightly-$NB_LOCAL_DATE.7z
+            ./assets/patch-$NB_LOCAL_DATE.7z
