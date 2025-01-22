@@ -3,8 +3,7 @@ name: Nightly Build
 on:
   # 手动触发
   workflow_dispatch:
-
-  # 定时触发 (UTC 时间 20:00，相当于北京时间第二天 04:00)
+  # 定时触发 (UTC 时间 20:00，相当于北京时间次日 04:00)
   schedule:
     - cron: '0 20 * * *'
 
@@ -13,112 +12,95 @@ jobs:
     name: Nightly Build
     runs-on: ubuntu-latest
 
-    env:
-      # 可以在这里统一定义一下当天日期和时间，便于后续使用
-      NB_LOCAL_DATE: ${{ steps.date.outputs.local_date }}
-      NB_LOCAL_TIME: ${{ steps.date.outputs.local_time }}
-      NB_TAG: nightly-${{ steps.date.outputs.local_date }}
-
     steps:
-      # 1. 获取当前日期和时间，用于后面命名、发布说明等
+      # 1. 获取当前日期和时间（转成 UTC+8），写入 GITHUB_ENV
       - name: Get current date
         id: date
         run: |
-          # 使用 date 命令获取本地时间（UTC+8）。需要注意 GitHub Actions 默认是 UTC 时区。
-          # 这里的做法是把 UTC 转成北京时间。
           BJ_DATE=$(date -u '+%Y-%m-%d' -d '+8 hour')
           BJ_TIME=$(date -u '+%H:%M:%S' -d '+8 hour')
-          echo "::set-output name=local_date::$BJ_DATE"
-          echo "::set-output name=local_time::$BJ_TIME"
 
-      # 2. Checkout 本仓库代码
+          # 将它们写入 GITHUB_ENV，供后面步骤当作环境变量使用
+          echo "NB_LOCAL_DATE=$BJ_DATE" >> $GITHUB_ENV
+          echo "NB_LOCAL_TIME=$BJ_TIME" >> $GITHUB_ENV
+          echo "NB_TAG=nightly-$BJ_DATE" >> $GITHUB_ENV
+
+      # 2. 检出本仓库代码
       - name: Check out
         uses: actions/checkout@v3
 
-      # 3. 下载另一个仓库的最新 Release 的 nightly-xxxx.7z
+      # 3. 下载另一个仓库的最新 Release （含 nightly-*.7z）
       - name: Download latest release from GTNH-UCN/Translation-of-GTNH
         uses: dawidd6/action-download-release@v2
         with:
-          # 指定要下载的仓库
           repository: 'GTNH-UCN/Translation-of-GTNH'
-          # 这里选择最新 Release
           tag: 'latest'
-          # 如果 Release 里只有一个叫 nightly-xxxx.7z 的资产，也可以用 asset-name: 'nightly-*.7z'
-          # 如果文件名唯一，可直接写死。
           asset-name: 'nightly-*.7z'
-          # 下载到的输出文件夹
           out-path: 'temp'
-          # 使用内置的 GitHub token 即可
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 4. 解压这份 nightly-xxxx.7z
+      # 4. 解压 nightly-xxxx.7z 到 temp/extracted
       - name: Extract translation
         uses: edgarrc/action-7z@v1
         with:
-          # 比如下载后文件名就是 nightly-YYYY-MM-DD.7z，可用通配
           args: 7z x -y 'temp/nightly-*.7z' -otemp/extracted
 
-      # 5. 从下载得到的文件里，排除(删除)不需要的文件/文件夹（若有）
+      # 5. 删除（排除）不需要的文件
       - name: Remove unwanted files in downloaded content
         run: |
-          # 比如排除 docs/ ，排除 config/something.txt
-          # 视具体需求来写
+          # 你可根据实际需求来删除特定文件或文件夹
           rm -rf temp/extracted/GTNH介绍.txt
           rm -rf temp/extracted/看我.md
 
-      # 6. 合并(覆盖)到本仓库
+      # 6. 覆盖合并到本仓库
       - name: Merge downloaded content to this repo
         run: |
-          # 也可以先把仓库里旧的翻译目录清理一下，然后再复制新的
-          # 例如把temp/extracted/全部复制并覆盖到当前仓库
           rsync -av temp/extracted/ ./
 
-      # 7. 移除本项目中不希望打包进最终产物的文件/文件夹（若需要）
+      # 7. 移除本项目内也不想打进包的文件
       - name: Remove unwanted files from this project
         run: |
-          # 例如 .gitignore, .github 之类只对项目维护有用，而非最终产物所需
           rm -rf .github
           rm -f .gitignore
-          # 视需要增减
+          # 视需要增补
 
-      # 8. 最终打包成 7z 并指定文件名
+      # 8. 打包成 7z（文件名中带上日期）
       - name: Zip Output
         uses: edgarrc/action-7z@v1
         with:
-          # 注意，如果想在打包时指定排除文件，可以使用 -x! 或 -xr!
-          # 例如：7z a -t7z -mx=9 ./assets/nightly-${{ env.NB_LOCAL_DATE }}.7z ./* -x!不要的文件夹
-          args: 7z a -t7z -mx=9 ./assets/nightly-${{ env.NB_LOCAL_DATE }}.7z ./*
+          # 这里用 shell 的方式引用环境变量
+          args: 7z a -t7z -mx=9 ./assets/nightly-$NB_LOCAL_DATE.7z ./*
 
-      # 9. 推送一个新的 tag
+      # 9. 推送一个 tag 到远程（用日期命名）
       - name: Push tag
         run: |
-          # 配置提交人信息
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
-          # 创建一个新分支（孤立分支）防止污染
+          # 建立临时空分支，确保不会污染当前分支提交历史
           git checkout --orphan temp
-          # 重置暂存区
           git reset HEAD -- .
-          git commit --allow-empty -m "Nightly Build ${{ env.NB_LOCAL_DATE }} ${{ env.NB_LOCAL_TIME }}"
-          # 创建 tag
-          git tag ${{ env.NB_TAG }}
+          git commit --allow-empty -m "Nightly Build $NB_LOCAL_DATE $NB_LOCAL_TIME"
 
-          # 先删除远程同名 tag（若存在）
-          git push --delete origin ${{ env.NB_TAG }} || true
-          # 再推送新 tag
-          git push origin ${{ env.NB_TAG }}
+          # 创建 tag
+          git tag $NB_TAG
+          # 若远程已有同名 tag，先删再推
+          git push --delete origin $NB_TAG || true
+          git push origin $NB_TAG
 
       # 10. 发布 Release
       - name: Release Nightly Build
         uses: softprops/action-gh-release@v1
+        env:
+          # 记得把 token 放在 env，而不是写死
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ env.NB_TAG }}
-          name: 每日构建 - ${{ env.NB_LOCAL_DATE }}
+          # 这里直接写 $NB_TAG，会自动从环境变量中替换
+          tag_name: $NB_TAG
+          name: 每日构建 - $NB_LOCAL_DATE
           body: |
             请阅读主页 ReadMe 以获知详细用法
-            
-            自动构建于 ${{ env.NB_LOCAL_DATE }} ${{ env.NB_LOCAL_TIME }}
+
+            自动构建于 $NB_LOCAL_DATE $NB_LOCAL_TIME
           files: |
-            ./assets/nightly-${{ env.NB_LOCAL_DATE }}.7z
-        # 如果要上传额外文件(比如校验文件等),可以用换行分隔在 files 下再列出来
+            ./assets/nightly-$NB_LOCAL_DATE.7z
