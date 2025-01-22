@@ -68,13 +68,8 @@ jobs:
       - name: Zip Output
         uses: edgarrc/action-7z@v1
         with:
-          args: |
-            # -x! 表示排除匹配的文件或目录
-            # 例如排除 .github/ 以及 GTNH介绍.txt、看我.md
-            7z a -t7z -mx=9 ./assets/nightly-$NB_LOCAL_DATE.7z ./ \
-              -x!GTNH介绍.txt \
-              -x!看我.md \
-              -x!.github
+          args: 7z a -t7z -mx=9 ./assets/nightly-$NB_LOCAL_DATE.7z ./ -x!GTNH介绍.txt -x!看我.md -x!.github
+
 
       # 9. 推送一个 tag 到远程（用日期命名）
       - name: Push tag
