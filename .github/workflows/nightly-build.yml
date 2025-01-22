@@ -44,31 +44,37 @@ jobs:
         with:
           args: 7z x -y temp/nightly-*.7z -otemp/extracted
 
-      # 5. 删除（排除）不需要的文件
-      - name: Fix permissions and remove files
-        run: |
-          # 强制把 temp/extracted/ 目录下的文件权限都改为可写
-          sudo chmod -R +w temp/extracted
-          # 然后再删除目标文件/文件夹
-          rm -rf temp/extracted/GTNH介绍.txt
+      # # 5. 删除（排除）不需要的文件
+      # - name: Fix permissions and remove files
+      #   run: |
+      #     # 强制把 temp/extracted/ 目录下的文件权限都改为可写
+      #     sudo chmod -R +w temp/extracted
+      #     # 然后再删除目标文件/文件夹
+      #     rm -rf temp/extracted/GTNH介绍.txt
 
       # 6. 覆盖合并到本仓库
       - name: Merge downloaded content to this repo
         run: |
           rsync -av temp/extracted/ ./
 
-      # 7. 移除本项目内也不想打进包的文件
-      - name: Remove unwanted files from this project
-        run: |
-          rm -rf .github
-          # rm -f .gitignore
-          # 视需要增补
+        # # 7. 移除本项目内也不想打进包的文件
+        # - name: Remove unwanted files from this project
+        #   run: |
+        #     rm -rf .github
+        #     # rm -f .gitignore
+        #     # 视需要增补
 
       # 8. 打包成 7z（文件名中带上日期）
       - name: Zip Output
         uses: edgarrc/action-7z@v1
         with:
-          args: 7z a -t7z -mx=9 ./assets/nightly-$NB_LOCAL_DATE.7z ./*
+          args: |
+            # -x! 表示排除匹配的文件或目录
+            # 例如排除 .github/ 以及 GTNH介绍.txt、看我.md
+            7z a -t7z -mx=9 ./assets/nightly-$NB_LOCAL_DATE.7z ./ \
+              -x!GTNH介绍.txt \
+              -x!看我.md \
+              -x!.github
 
       # 9. 推送一个 tag 到远程（用日期命名）
       - name: Push tag
