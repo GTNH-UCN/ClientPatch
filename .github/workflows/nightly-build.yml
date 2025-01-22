@@ -45,10 +45,12 @@ jobs:
           args: 7z x -y temp/nightly-*.7z -otemp/extracted
 
       # 5. 删除（排除）不需要的文件
-      - name: Remove unwanted files in downloaded content
+      - name: Fix permissions and remove files
         run: |
+          # 强制把 temp/extracted/ 目录下的文件权限都改为可写
+          chmod -R +w temp/extracted
+          # 然后再删除目标文件/文件夹
           rm -rf temp/extracted/GTNH介绍.txt
-          rm -rf temp/extracted/看我.md
 
       # 6. 覆盖合并到本仓库
       - name: Merge downloaded content to this repo
@@ -59,7 +61,7 @@ jobs:
       - name: Remove unwanted files from this project
         run: |
           rm -rf .github
-          rm -f .gitignore
+          # rm -f .gitignore
           # 视需要增补
 
       # 8. 打包成 7z（文件名中带上日期）
