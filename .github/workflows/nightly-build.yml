@@ -3,14 +3,12 @@ name: Nightly Build
 on:
   # 手动触发
   workflow_dispatch:
-
   # 定时触发 (UTC 时间 20:00，相当于北京时间次日 04:00)
   schedule:
     - cron: '0 20 * * *'
 
 jobs:
   nightly-build:
-    name: Nightly Build
     runs-on: ubuntu-latest
 
     steps:
@@ -23,14 +21,13 @@ jobs:
 
           echo "NB_LOCAL_DATE=$BJ_DATE" >> $GITHUB_ENV
           echo "NB_LOCAL_TIME=$BJ_TIME" >> $GITHUB_ENV
-          # 如果要让 Tag 名也用 patch- 前缀，可以改这里
           echo "NB_TAG=patch-$BJ_DATE" >> $GITHUB_ENV
 
       # 2. 检出本仓库代码
       - name: Check out
         uses: actions/checkout@v3
 
-      # 3. 下载另一个仓库最新 Release 中的 nightly-*.7z
+      # 3. 下载另一个仓库的最新 Release
       - name: Download latest release from GTNH-UCN/Translation-of-GTNH
         uses: robinraju/release-downloader@v1
         with:
@@ -46,16 +43,15 @@ jobs:
         with:
           args: 7z x -y temp/nightly-*.7z -otemp/extracted
 
-      # 5. 合并到本仓库（如需排除可用 --exclude）
+      # 5. 合并到本仓库
       - name: Merge downloaded content to this repo
-        run: |
-          rsync -av temp/extracted/ ./
+        run: rsync -av temp/extracted/ ./
 
-      # 6. 打包成 7z（文件名改为 patch-日期.7z）
+      # 6. 打包成 patch-日期.7z，使用 GitHub Actions 表达式
       - name: Zip Output
         uses: edgarrc/action-7z@v1
         with:
-          args: 7z a -t7z -mx=9 ./assets/patch-$NB_LOCAL_DATE.7z ./ -x!GTNH介绍.txt -x!看我.md -x!.github -x!.git -x!temp
+          args: 7z a -t7z -mx=9 ./assets/patch-${{ env.NB_LOCAL_DATE }}.7z ./ -x!GTNH介绍.txt -x!看我.md -x!.github -x!.git -x!temp
 
 
       # 7. 推送 tag 到远程
@@ -66,11 +62,11 @@ jobs:
 
           git checkout --orphan temp
           git reset HEAD -- .
-          git commit --allow-empty -m "Nightly Build $NB_LOCAL_DATE $NB_LOCAL_TIME"
+          git commit --allow-empty -m "Nightly Build ${NB_LOCAL_DATE} ${NB_LOCAL_TIME}"
 
-          git tag $NB_TAG
-          git push --delete origin $NB_TAG || true
-          git push origin $NB_TAG
+          git tag "${NB_TAG}"
+          git push --delete origin "${NB_TAG}" || true
+          git push origin "${NB_TAG}"
 
       # 8. 发布 Release
       - name: Release Nightly Build
@@ -78,12 +74,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: $NB_TAG
-          name: Patch 每日构建 - $NB_LOCAL_DATE
+          # 在 YAML 表达式中引用 env 变量
+          tag_name: ${{ env.NB_TAG }}
+          name: Patch 每日构建 - ${{ env.NB_LOCAL_DATE }}
           body: |
             请阅读主页 ReadMe 以获知详细用法
 
-            自动构建于 $NB_LOCAL_DATE $NB_LOCAL_TIME
-          # 同样需要把上传的文件名改为 patch-$NB_LOCAL_DATE.7z
+            自动构建于 ${{ env.NB_LOCAL_DATE }} ${{ env.NB_LOCAL_TIME }}
           files: |
-            ./assets/patch-$NB_LOCAL_DATE.7z
+            ./assets/patch-${{ env.NB_LOCAL_DATE }}.7z
