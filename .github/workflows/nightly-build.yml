@@ -48,7 +48,7 @@ jobs:
       - name: Fix permissions and remove files
         run: |
           # 强制把 temp/extracted/ 目录下的文件权限都改为可写
-          chmod -R +w temp/extracted
+          sudo chmod -R +w temp/extracted
           # 然后再删除目标文件/文件夹
           rm -rf temp/extracted/GTNH介绍.txt
 
