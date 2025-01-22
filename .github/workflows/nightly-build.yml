@@ -20,7 +20,6 @@ jobs:
           BJ_DATE=$(date -u '+%Y-%m-%d' -d '+8 hour')
           BJ_TIME=$(date -u '+%H:%M:%S' -d '+8 hour')
 
-          # 将它们写入 GITHUB_ENV，供后面步骤当作环境变量使用
           echo "NB_LOCAL_DATE=$BJ_DATE" >> $GITHUB_ENV
           echo "NB_LOCAL_TIME=$BJ_TIME" >> $GITHUB_ENV
           echo "NB_TAG=nightly-$BJ_DATE" >> $GITHUB_ENV
@@ -29,17 +28,17 @@ jobs:
       - name: Check out
         uses: actions/checkout@v3
 
-      # 3. 下载另一个仓库的最新 Release （含 nightly-*.7z）
+      # 3. 使用 robinraju/release-downloader 下载另一个仓库最新 Release 中的 nightly-*.7z
       - name: Download latest release from GTNH-UCN/Translation-of-GTNH
-        uses: dawidd6/action-download-release@v2
+        uses: robinraju/release-downloader@v1
         with:
           repository: 'GTNH-UCN/Translation-of-GTNH'
-          tag: 'latest'
-          asset-name: 'nightly-*.7z'
-          out-path: 'temp'
+          latest: true
+          fileName: 'nightly-*.7z'
+          out-file-path: 'temp'
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # 4. 解压 nightly-xxxx.7z 到 temp/extracted
+      # 4. 解压 nightly-*.7z 到 temp/extracted
       - name: Extract translation
         uses: edgarrc/action-7z@v1
         with:
@@ -48,7 +47,6 @@ jobs:
       # 5. 删除（排除）不需要的文件
       - name: Remove unwanted files in downloaded content
         run: |
-          # 你可根据实际需求来删除特定文件或文件夹
           rm -rf temp/extracted/GTNH介绍.txt
           rm -rf temp/extracted/看我.md
 
@@ -68,7 +66,6 @@ jobs:
       - name: Zip Output
         uses: edgarrc/action-7z@v1
         with:
-          # 这里用 shell 的方式引用环境变量
           args: 7z a -t7z -mx=9 ./assets/nightly-$NB_LOCAL_DATE.7z ./*
 
       # 9. 推送一个 tag 到远程（用日期命名）
@@ -77,14 +74,11 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
 
-          # 建立临时空分支，确保不会污染当前分支提交历史
           git checkout --orphan temp
           git reset HEAD -- .
           git commit --allow-empty -m "Nightly Build $NB_LOCAL_DATE $NB_LOCAL_TIME"
 
-          # 创建 tag
           git tag $NB_TAG
-          # 若远程已有同名 tag，先删再推
           git push --delete origin $NB_TAG || true
           git push origin $NB_TAG
 
@@ -92,10 +86,8 @@ jobs:
       - name: Release Nightly Build
         uses: softprops/action-gh-release@v1
         env:
-          # 记得把 token 放在 env，而不是写死
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          # 这里直接写 $NB_TAG，会自动从环境变量中替换
           tag_name: $NB_TAG
           name: 每日构建 - $NB_LOCAL_DATE
           body: |
